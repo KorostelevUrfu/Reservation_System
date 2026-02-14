@@ -30,14 +30,12 @@ public class ReservationController {
         log.info("Called getReservationById: id={}", id);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(reservationService.getReservationByID(id));
-        //return reservationService.getReservationByID(id);
     }
 
     @GetMapping
     public ResponseEntity<List<Reservation>> getAllReservations() {
         log.info("Called getAllReservations");
         return ResponseEntity.ok(reservationService.findAllReservations());
-        //return reservationService.findAllReservations();
     }
 
     @PostMapping
@@ -73,7 +71,6 @@ public class ReservationController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .build();
         }
-
     }
 
     @PostMapping("/{id}/approve")
@@ -83,5 +80,4 @@ public class ReservationController {
         return ResponseEntity.status(HttpStatus.OK)
                 .body(reservation);
     }
-
 }

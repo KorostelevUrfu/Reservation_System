@@ -1,35 +1,33 @@
 package korostelev.ivan.reservation_system;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class ReservationService {
 
-    private final Map<Long, Reservation> reservationMap;
+    private final ReservationRepository repository;
 
-    private final AtomicLong idCounter;
-
-    public ReservationService() {
-        this.idCounter = new AtomicLong();
-        this.reservationMap = new HashMap<>();
+    public ReservationService(ReservationRepository repository) {
+        this.repository = repository;
     }
 
     public Reservation getReservationByID(Long id) {
-        if(!reservationMap.containsKey(id)){
-            throw new NoSuchElementException("Not found reservation by id = " + id);
-        }
-        return reservationMap.get(id);
+
+        var reservationEntity = repository.findById(id).orElseThrow(
+                () -> new EntityNotFoundException("Not found reservation by id = " + id));
+
+        return toDomainReservation(reservationEntity);
     }
 
     public List<Reservation> findAllReservations() {
-        return reservationMap.values().stream().toList();
+        List<ReservationEntity> allEntities = repository.findAll();
 
+        return allEntities.stream()
+                .map(this::toDomainReservation)
+                .toList();
     }
 
     public Reservation createReservation(Reservation reservationToCreate) {
@@ -40,97 +38,97 @@ public class ReservationService {
             throw new IllegalArgumentException("Status should be empty");
         }
 
-        Reservation newReservation = new Reservation(
-                idCounter.incrementAndGet(),
+        var newReservation = new ReservationEntity(
+                null,
                 reservationToCreate.userId(),
-                reservationToCreate.roomID(),
+                reservationToCreate.roomId(),
                 reservationToCreate.startDate(),
                 reservationToCreate.endDate(),
                 ReservationStatus.PENDING
         );
 
-        reservationMap.put(idCounter.get(), newReservation);
-
-        return newReservation;
+        var savedEntity = repository.save(newReservation);
+        return toDomainReservation(savedEntity);
     }
 
     public Reservation updateReservation(Long id, Reservation reservationToUpdate) {
-        if(!reservationMap.containsKey(id)){
-            throw new NoSuchElementException("Not found reservation by id = " + id);
-        }
-        Reservation reservation = reservationMap.get(id);
-        if(reservation.status() != ReservationStatus.PENDING){
-            throw new IllegalStateException("Cannot modify reservation: status= " + reservation.status());
+
+        var reservationEntity = repository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Not found reservation by id = " + id));
+
+        if(reservationEntity.getStatus() != ReservationStatus.PENDING){
+            throw new IllegalStateException("Cannot modify reservation: status= " + reservationEntity.getStatus());
         }
 
-        Reservation updatedReservation = new Reservation(
-                reservation.id(),
+        var reservationToSave = new ReservationEntity(
+                reservationEntity.getId(),
                 reservationToUpdate.userId(),
-                reservationToUpdate.roomID(),
+                reservationToUpdate.roomId(),
                 reservationToUpdate.startDate(),
                 reservationToUpdate.endDate(),
                 ReservationStatus.PENDING
         );
 
-        reservationMap.put(reservation.id(), updatedReservation);
-
-        return updatedReservation;
+        var updatedReservation = repository.save(reservationToSave);
+        return toDomainReservation(updatedReservation);
     }
 
     public void deleteReservation(Long id) {
-        if(!reservationMap.containsKey(id)){
-            throw new NoSuchElementException("Not found reservation by id = " + id);
+        if(!repository.existsById(id)){
+            throw new EntityNotFoundException("Not found reservation by id = " + id);
         }
-        reservationMap.remove(id);
+        repository.deleteById(id);
     }
 
     public Reservation approveReservation(Long id) {
-        if(!reservationMap.containsKey(id)){
-            throw new NoSuchElementException("Not found reservation by id = " + id);
+
+        var reservationEntity = repository.findById(id).orElseThrow(
+                () -> new EntityNotFoundException("Not found reservation by id = " + id));
+
+        if(reservationEntity.getStatus() != ReservationStatus.PENDING){
+            throw new IllegalStateException("Cannot approve reservation: status = " + reservationEntity.getStatus());
         }
 
-        Reservation reservation = reservationMap.get(id);
-
-        if(reservation.status() != ReservationStatus.PENDING){
-            throw new IllegalStateException("Cannot approve reservation: status= " + reservation.status());
-        }
-
-        boolean isConflict = isReservationConflict(reservation);
+        boolean isConflict = isReservationConflict(reservationEntity);
 
         if(isConflict){
             throw new IllegalStateException("Cannot approve reservation because of conflict");
         }
 
-        Reservation approvedReservation = new Reservation(
-                reservation.id(),
-                reservation.userId(),
-                reservation.roomID(),
-                reservation.startDate(),
-                reservation.endDate(),
-                ReservationStatus.APPROVED
-        );
+        reservationEntity.setStatus(ReservationStatus.APPROVED);
+        repository.save(reservationEntity);
 
-        reservationMap.put(reservation.id(), approvedReservation);
-
-        return approvedReservation;
+        return toDomainReservation(reservationEntity);
     }
 
-    private boolean isReservationConflict(Reservation reservation){
-        for(Reservation existingReservation: reservationMap.values()){
-            if(reservation.id().equals(existingReservation.id())){
+    private boolean isReservationConflict(ReservationEntity reservation){
+        List<ReservationEntity> existingReservation = repository.findAll();
+        for(ReservationEntity reservationEntity : existingReservation){
+            if(reservationEntity.getStatus() != ReservationStatus.APPROVED){
                 continue;
             }
-            if(!reservation.roomID().equals(existingReservation.roomID())){
+            if(!reservationEntity.getRoomId().equals(reservation.getRoomId())){
                 continue;
             }
-            if(!existingReservation.status().equals(ReservationStatus.APPROVED)){
+            if(reservation.getId().equals(reservationEntity.getId())){
                 continue;
             }
-            if(reservation.startDate().isBefore(existingReservation.endDate())
-                    && existingReservation.startDate().isBefore(reservation.endDate())){
-                return true;
+            if(reservation.getStartDate().isBefore(reservationEntity.getEndDate())
+                    && reservationEntity.getStartDate().isBefore(reservation.getEndDate())){
+                    return true;
             }
         }
         return false;
+    }
+
+    private Reservation toDomainReservation(ReservationEntity reservationEntity){
+        return new Reservation(
+                    reservationEntity.getId(),
+                    reservationEntity.getUserId(),
+                    reservationEntity.getRoomId(),
+                    reservationEntity.getStartDate(),
+                    reservationEntity.getEndDate(),
+                    reservationEntity.getStatus()
+        );
     }
 }
