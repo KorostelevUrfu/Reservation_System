@@ -44,7 +44,6 @@ public class ReservationController {
         log.info("Called a createReservation");
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(reservationService.createReservation(reservationToCreate));
-
     }
 
     @PutMapping("/{id}")
@@ -57,20 +56,14 @@ public class ReservationController {
         return ResponseEntity.ok(updatedReservation);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id}/cancel")
     public ResponseEntity<Void> deleteReservation(
             @PathVariable("id") Long id
     ){
         log.info("Called a deleteReservation id={}", id);
-
-        try{
-            reservationService.deleteReservation(id);
-            return ResponseEntity.ok()
+        reservationService.cancelReservation(id);
+        return ResponseEntity.ok()
                     .build();
-        }catch (NoSuchElementException e){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .build();
-        }
     }
 
     @PostMapping("/{id}/approve")
