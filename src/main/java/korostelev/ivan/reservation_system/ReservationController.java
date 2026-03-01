@@ -1,5 +1,6 @@
 package korostelev.ivan.reservation_system;
 
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.NoSuchElementException;
 
 @RestController
 @RequestMapping("/reservation")
@@ -39,17 +39,17 @@ public class ReservationController {
     }
 
     @PostMapping
-    //@RequestBody - переводит из json в объект
-    public ResponseEntity<Reservation>  createReservation(@RequestBody Reservation reservationToCreate){
+    public ResponseEntity<Reservation>  createReservation(@RequestBody @Valid Reservation reservationToCreate){
         log.info("Called a createReservation");
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(reservationService.createReservation(reservationToCreate));
     }
 
     @PutMapping("/{id}")
+
     public ResponseEntity<Reservation> updateReservation(
             @PathVariable("id") Long id,
-            @RequestBody Reservation reservationToUpdate
+            @RequestBody @Valid Reservation reservationToUpdate
     ){
         log.info("Called a updateReservation id={}, reservationToUpdate={}", id, reservationToUpdate);
         Reservation updatedReservation =  reservationService.updateReservation(id, reservationToUpdate);
